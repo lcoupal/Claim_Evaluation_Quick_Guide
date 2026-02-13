@@ -43,7 +43,7 @@
         .nav-bar { background: var(--white); border-bottom: 1px solid var(--gray-300); padding: 16px 20px; position: sticky; top: 0; z-index: 100; }
         .nav-bar-inner { max-width: 900px; margin: 0 auto; }
         .nav-bar-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
-        
+
         .comp-tabs { display: flex; gap: 4px; }
         .comp-tab { padding: 10px 20px; border: none; background: var(--gray-100); font-size: 0.85rem; font-weight: 600; cursor: pointer; font-family: inherit; border-radius: 6px 6px 0 0; color: var(--gray-600); transition: all 0.2s; }
         .comp-tab:hover { background: var(--gray-200); }
@@ -77,7 +77,7 @@
         .info-field input { width: 100%; padding: 10px 12px; border: 1px solid var(--gray-300); border-radius: 4px; font-size: 0.9rem; font-family: inherit; }
         .info-field input:focus { outline: none; border-color: var(--wgu-blue); box-shadow: 0 0 0 3px rgba(0, 119, 200, 0.15); }
 
-        /* Competency Sections */
+        /* Competency Sections — hidden by default, shown via .visible */
         .comp-section { background: var(--white); border: 1px solid var(--gray-300); border-radius: 8px; margin-bottom: 20px; overflow: hidden; display: none; }
         .comp-section.visible { display: block; }
 
@@ -284,7 +284,7 @@
         </div>
 
         <!-- COMPETENCY 1 -->
-        <div class="comp-section comp1 visible" id="comp1Section">
+        <div class="comp-section comp1" id="comp1Section">
             <div class="comp-section-header">
                 <h2>Competency 1: Supports a Scientific Claim</h2>
                 <p>Identify credible evidence and translate scientific language</p>
@@ -312,7 +312,6 @@
                 <p>Apply evaluation criteria and identify misinformation</p>
             </div>
             <div class="comp-section-body">
-                <!-- Reference Content for Comp 2 -->
                 <div style="margin-bottom: 20px;">
                     <div class="content-block-title">Quick Reference: Red Flags</div>
                     <div class="ref-grid">
@@ -344,7 +343,6 @@
                 <p>Analyze claims within system context and multiple perspectives</p>
             </div>
             <div class="comp-section-body">
-                <!-- Reference Content for Comp 3 -->
                 <div style="margin-bottom: 20px;">
                     <div class="content-block-title">Quick Reference: Systems Thinking</div>
                     <div class="ref-grid">
@@ -382,9 +380,25 @@
     </footer>
 
     <script>
+        /* ── Storage helper (safe for iframes / sandboxed contexts) ── */
+        const storage = {
+            _ok: null,
+            _available() {
+                if (this._ok !== null) return this._ok;
+                try { localStorage.setItem('__test', '1'); localStorage.removeItem('__test'); this._ok = true; }
+                catch (e) { this._ok = false; }
+                return this._ok;
+            },
+            get(key) { try { return this._available() ? localStorage.getItem(key) : null; } catch (e) { return null; } },
+            set(key, val) { try { if (this._available()) localStorage.setItem(key, val); } catch (e) {} },
+            remove(key) { try { if (this._available()) localStorage.removeItem(key); } catch (e) {} }
+        };
+
+        /* ── State ── */
         let currentComp = '1';
         let showAll = false;
-        let guideData = {
+
+        const defaultData = () => ({
             studentName: '',
             lastUpdated: '',
             questions: {
@@ -430,12 +444,21 @@
                     { id: 'l3_5', name: 'Lesson 5', notes: [], examples: [], images: [] }
                 ]
             }
-        };
+        });
 
-        document.addEventListener('DOMContentLoaded', function() { loadData(); updateView(); updateProgress(); updateDate(); });
+        let guideData = defaultData();
 
-        function setComp(comp) { 
-            currentComp = comp; 
+        /* ── Init ── */
+        document.addEventListener('DOMContentLoaded', function () {
+            loadData();
+            updateView();      // ← sets visibility AFTER load
+            updateProgress();
+            updateDate();
+        });
+
+        /* ── View / Tabs ── */
+        function setComp(comp) {
+            currentComp = comp;
             document.querySelectorAll('.comp-tab').forEach(t => t.classList.toggle('active', t.dataset.comp === comp));
             updateView();
         }
@@ -446,32 +469,35 @@
         }
 
         function updateView() {
+            // 1) Hide ALL sections first
             document.querySelectorAll('.comp-section').forEach(s => s.classList.remove('visible'));
+            // 2) Show the correct ones
             if (showAll) {
                 document.querySelectorAll('.comp-section').forEach(s => s.classList.add('visible'));
             } else {
-                document.getElementById(`comp${currentComp}Section`).classList.add('visible');
+                var target = document.getElementById('comp' + currentComp + 'Section');
+                if (target) target.classList.add('visible');
             }
         }
 
-        // Lessons
+        /* ── Lessons ── */
         function addLesson(comp) {
-            const id = 'l' + comp + '_' + Date.now();
-            const num = guideData.lessons[comp].length + 1;
-            guideData.lessons[comp].push({ id, name: `Lesson ${num}`, notes: [], examples: [], images: [] });
+            var id = 'l' + comp + '_' + Date.now();
+            var num = guideData.lessons[comp].length + 1;
+            guideData.lessons[comp].push({ id: id, name: 'Lesson ' + num, notes: [], examples: [], images: [] });
             renderLessons(comp);
             saveData();
         }
 
         function updateLessonName(comp, lessonId, name) {
-            const lesson = guideData.lessons[comp].find(l => l.id === lessonId);
+            var lesson = guideData.lessons[comp].find(function (l) { return l.id === lessonId; });
             if (lesson) { lesson.name = name; saveData(); }
         }
 
         function deleteLesson(comp, lessonId) {
             if (guideData.lessons[comp].length <= 1) { alert('Must have at least one lesson.'); return; }
             if (confirm('Delete this lesson and all its content?')) {
-                guideData.lessons[comp] = guideData.lessons[comp].filter(l => l.id !== lessonId);
+                guideData.lessons[comp] = guideData.lessons[comp].filter(function (l) { return l.id !== lessonId; });
                 renderLessons(comp);
                 saveData();
             }
@@ -482,42 +508,41 @@
         }
 
         function renderLessons(comp) {
-            const container = document.getElementById(`lessons-comp${comp}`);
+            var container = document.getElementById('lessons-comp' + comp);
             container.innerHTML = '';
-            guideData.lessons[comp].forEach(lesson => {
-                const card = document.createElement('div');
+            guideData.lessons[comp].forEach(function (lesson) {
+                var card = document.createElement('div');
                 card.className = 'lesson-card open';
                 card.id = lesson.id;
-                card.innerHTML = `
-                    <div class="lesson-card-header">
-                        <input type="text" class="lesson-name-input" value="${lesson.name}" onchange="updateLessonName('${comp}', '${lesson.id}', this.value)">
-                        <div class="lesson-actions">
-                            <button class="lesson-toggle-btn" onclick="toggleLesson('${lesson.id}')">▼</button>
-                            <button class="delete-lesson-btn" onclick="deleteLesson('${comp}', '${lesson.id}')">Delete</button>
-                        </div>
-                    </div>
-                    <div class="lesson-card-body">
-                        <div class="content-block">
-                            <div class="content-block-title">Notes</div>
-                            <div class="notes-container" id="notes-${lesson.id}"></div>
-                            <button class="add-btn" onclick="addNote('${comp}', '${lesson.id}')">+ Add Note</button>
-                        </div>
-                        <div class="content-block">
-                            <div class="content-block-title">Claim Examples</div>
-                            <div id="examples-${lesson.id}"></div>
-                            <button class="add-btn" onclick="addExample('${comp}', '${lesson.id}')">+ Add Example</button>
-                        </div>
-                        <div class="content-block">
-                            <div class="content-block-title">Images</div>
-                            <div class="image-upload-area" onclick="document.getElementById('img-${lesson.id}').click()">
-                                <input type="file" id="img-${lesson.id}" accept="image/*" multiple onchange="handleImageUpload(event, '${comp}', '${lesson.id}')">
-                                <div class="upload-icon">+</div>
-                                <div class="upload-text">Click to upload</div>
-                            </div>
-                            <div class="images-grid" id="images-${lesson.id}"></div>
-                        </div>
-                    </div>
-                `;
+                card.innerHTML =
+                    '<div class="lesson-card-header">' +
+                        '<input type="text" class="lesson-name-input" value="' + escAttr(lesson.name) + '" onchange="updateLessonName(\'' + comp + '\', \'' + lesson.id + '\', this.value)">' +
+                        '<div class="lesson-actions">' +
+                            '<button class="lesson-toggle-btn" onclick="toggleLesson(\'' + lesson.id + '\')">&#9660;</button>' +
+                            '<button class="delete-lesson-btn" onclick="deleteLesson(\'' + comp + '\', \'' + lesson.id + '\')">Delete</button>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="lesson-card-body">' +
+                        '<div class="content-block">' +
+                            '<div class="content-block-title">Notes</div>' +
+                            '<div class="notes-container" id="notes-' + lesson.id + '"></div>' +
+                            '<button class="add-btn" onclick="addNote(\'' + comp + '\', \'' + lesson.id + '\')">+ Add Note</button>' +
+                        '</div>' +
+                        '<div class="content-block">' +
+                            '<div class="content-block-title">Claim Examples</div>' +
+                            '<div id="examples-' + lesson.id + '"></div>' +
+                            '<button class="add-btn" onclick="addExample(\'' + comp + '\', \'' + lesson.id + '\')">+ Add Example</button>' +
+                        '</div>' +
+                        '<div class="content-block">' +
+                            '<div class="content-block-title">Images</div>' +
+                            '<div class="image-upload-area" onclick="document.getElementById(\'img-' + lesson.id + '\').click()">' +
+                                '<input type="file" id="img-' + lesson.id + '" accept="image/*" multiple onchange="handleImageUpload(event, \'' + comp + '\', \'' + lesson.id + '\')">' +
+                                '<div class="upload-icon">+</div>' +
+                                '<div class="upload-text">Click to upload</div>' +
+                            '</div>' +
+                            '<div class="images-grid" id="images-' + lesson.id + '"></div>' +
+                        '</div>' +
+                    '</div>';
                 container.appendChild(card);
                 renderNotes(comp, lesson.id);
                 renderExamples(comp, lesson.id);
@@ -525,9 +550,9 @@
             });
         }
 
-        // Notes
+        /* ── Notes ── */
         function addNote(comp, lessonId) {
-            const lesson = guideData.lessons[comp].find(l => l.id === lessonId);
+            var lesson = guideData.lessons[comp].find(function (l) { return l.id === lessonId; });
             if (lesson) {
                 lesson.notes.push({ id: 'n' + Date.now(), content: '', date: new Date().toLocaleDateString() });
                 renderNotes(comp, lessonId);
@@ -536,36 +561,39 @@
         }
 
         function updateNote(comp, lessonId, noteId, content) {
-            const lesson = guideData.lessons[comp].find(l => l.id === lessonId);
-            const note = lesson?.notes.find(n => n.id === noteId);
+            var lesson = guideData.lessons[comp].find(function (l) { return l.id === lessonId; });
+            var note = lesson && lesson.notes.find(function (n) { return n.id === noteId; });
             if (note) { note.content = content; saveData(); updateProgress(); }
         }
 
         function deleteNote(comp, lessonId, noteId) {
-            const lesson = guideData.lessons[comp].find(l => l.id === lessonId);
+            var lesson = guideData.lessons[comp].find(function (l) { return l.id === lessonId; });
             if (lesson) {
-                lesson.notes = lesson.notes.filter(n => n.id !== noteId);
+                lesson.notes = lesson.notes.filter(function (n) { return n.id !== noteId; });
                 renderNotes(comp, lessonId);
                 saveData();
             }
         }
 
         function renderNotes(comp, lessonId) {
-            const lesson = guideData.lessons[comp].find(l => l.id === lessonId);
-            const container = document.getElementById(`notes-${lessonId}`);
+            var lesson = guideData.lessons[comp].find(function (l) { return l.id === lessonId; });
+            var container = document.getElementById('notes-' + lessonId);
             if (!container || !lesson) return;
             container.innerHTML = '';
-            lesson.notes.forEach(note => {
-                const card = document.createElement('div');
+            lesson.notes.forEach(function (note) {
+                var card = document.createElement('div');
                 card.className = 'note-card';
-                card.innerHTML = `<div class="note-card-header"><span class="note-date">${note.date}</span><button class="delete-btn" onclick="deleteNote('${comp}','${lessonId}','${note.id}')">×</button></div><textarea placeholder="Add note..." oninput="updateNote('${comp}','${lessonId}','${note.id}',this.value)">${note.content||''}</textarea>`;
+                card.innerHTML =
+                    '<div class="note-card-header"><span class="note-date">' + escHtml(note.date) + '</span>' +
+                    '<button class="delete-btn" onclick="deleteNote(\'' + comp + '\',\'' + lessonId + '\',\'' + note.id + '\')">×</button></div>' +
+                    '<textarea placeholder="Add note..." oninput="updateNote(\'' + comp + '\',\'' + lessonId + '\',\'' + note.id + '\',this.value)">' + escHtml(note.content || '') + '</textarea>';
                 container.appendChild(card);
             });
         }
 
-        // Examples
+        /* ── Examples ── */
         function addExample(comp, lessonId) {
-            const lesson = guideData.lessons[comp].find(l => l.id === lessonId);
+            var lesson = guideData.lessons[comp].find(function (l) { return l.id === lessonId; });
             if (lesson) {
                 lesson.examples.push({ id: 'e' + Date.now(), source: '', claim: '', analysis: '', verdict: '', date: new Date().toLocaleDateString() });
                 renderExamples(comp, lessonId);
@@ -574,48 +602,62 @@
         }
 
         function updateExample(comp, lessonId, exId, field, value) {
-            const lesson = guideData.lessons[comp].find(l => l.id === lessonId);
-            const ex = lesson?.examples.find(e => e.id === exId);
+            var lesson = guideData.lessons[comp].find(function (l) { return l.id === lessonId; });
+            var ex = lesson && lesson.examples.find(function (e) { return e.id === exId; });
             if (ex) { ex[field] = value; saveData(); updateProgress(); }
         }
 
         function setVerdict(comp, lessonId, exId, v) {
-            const lesson = guideData.lessons[comp].find(l => l.id === lessonId);
-            const ex = lesson?.examples.find(e => e.id === exId);
+            var lesson = guideData.lessons[comp].find(function (l) { return l.id === lessonId; });
+            var ex = lesson && lesson.examples.find(function (e) { return e.id === exId; });
             if (ex) { ex.verdict = v; renderExamples(comp, lessonId); saveData(); updateProgress(); }
         }
 
         function deleteExample(comp, lessonId, exId) {
-            const lesson = guideData.lessons[comp].find(l => l.id === lessonId);
+            var lesson = guideData.lessons[comp].find(function (l) { return l.id === lessonId; });
             if (lesson) {
-                lesson.examples = lesson.examples.filter(e => e.id !== exId);
+                lesson.examples = lesson.examples.filter(function (e) { return e.id !== exId; });
                 renderExamples(comp, lessonId);
                 saveData();
             }
         }
 
         function renderExamples(comp, lessonId) {
-            const lesson = guideData.lessons[comp].find(l => l.id === lessonId);
-            const container = document.getElementById(`examples-${lessonId}`);
+            var lesson = guideData.lessons[comp].find(function (l) { return l.id === lessonId; });
+            var container = document.getElementById('examples-' + lessonId);
             if (!container || !lesson) return;
             container.innerHTML = '';
-            lesson.examples.forEach(ex => {
-                const card = document.createElement('div');
+            lesson.examples.forEach(function (ex) {
+                var card = document.createElement('div');
                 card.className = 'example-card';
-                card.innerHTML = `<div class="example-header"><h4>Example<span class="example-date">${ex.date}</span></h4><button class="delete-btn" onclick="deleteExample('${comp}','${lessonId}','${ex.id}')">×</button></div><div class="example-body"><div class="example-field"><label>Source</label><input type="text" placeholder="Where from?" value="${ex.source||''}" oninput="updateExample('${comp}','${lessonId}','${ex.id}','source',this.value)"></div><div class="example-field"><label>Claim</label><textarea placeholder="The claim..." oninput="updateExample('${comp}','${lessonId}','${ex.id}','claim',this.value)">${ex.claim||''}</textarea></div><div class="example-field"><label>Analysis</label><textarea placeholder="Your analysis..." oninput="updateExample('${comp}','${lessonId}','${ex.id}','analysis',this.value)">${ex.analysis||''}</textarea></div><div class="example-field"><label>Verdict</label><div class="verdict-select"><div class="verdict-option ${ex.verdict==='strong'?'selected strong':''}" onclick="setVerdict('${comp}','${lessonId}','${ex.id}','strong')">Strong</div><div class="verdict-option ${ex.verdict==='mixed'?'selected mixed':''}" onclick="setVerdict('${comp}','${lessonId}','${ex.id}','mixed')">Mixed</div><div class="verdict-option ${ex.verdict==='weak'?'selected weak':''}" onclick="setVerdict('${comp}','${lessonId}','${ex.id}','weak')">Weak</div></div></div></div>`;
+                card.innerHTML =
+                    '<div class="example-header"><h4>Example<span class="example-date">' + escHtml(ex.date) + '</span></h4>' +
+                    '<button class="delete-btn" onclick="deleteExample(\'' + comp + '\',\'' + lessonId + '\',\'' + ex.id + '\')">×</button></div>' +
+                    '<div class="example-body">' +
+                        '<div class="example-field"><label>Source</label><input type="text" placeholder="Where from?" value="' + escAttr(ex.source || '') + '" oninput="updateExample(\'' + comp + '\',\'' + lessonId + '\',\'' + ex.id + '\',\'source\',this.value)"></div>' +
+                        '<div class="example-field"><label>Claim</label><textarea placeholder="The claim..." oninput="updateExample(\'' + comp + '\',\'' + lessonId + '\',\'' + ex.id + '\',\'claim\',this.value)">' + escHtml(ex.claim || '') + '</textarea></div>' +
+                        '<div class="example-field"><label>Analysis</label><textarea placeholder="Your analysis..." oninput="updateExample(\'' + comp + '\',\'' + lessonId + '\',\'' + ex.id + '\',\'analysis\',this.value)">' + escHtml(ex.analysis || '') + '</textarea></div>' +
+                        '<div class="example-field"><label>Verdict</label>' +
+                        '<div class="verdict-select">' +
+                            '<div class="verdict-option ' + (ex.verdict === 'strong' ? 'selected strong' : '') + '" onclick="setVerdict(\'' + comp + '\',\'' + lessonId + '\',\'' + ex.id + '\',\'strong\')">Strong</div>' +
+                            '<div class="verdict-option ' + (ex.verdict === 'mixed' ? 'selected mixed' : '') + '" onclick="setVerdict(\'' + comp + '\',\'' + lessonId + '\',\'' + ex.id + '\',\'mixed\')">Mixed</div>' +
+                            '<div class="verdict-option ' + (ex.verdict === 'weak' ? 'selected weak' : '') + '" onclick="setVerdict(\'' + comp + '\',\'' + lessonId + '\',\'' + ex.id + '\',\'weak\')">Weak</div>' +
+                        '</div></div>' +
+                    '</div>';
                 container.appendChild(card);
             });
         }
 
-        // Images
+        /* ── Images ── */
         function handleImageUpload(e, comp, lessonId) {
-            const lesson = guideData.lessons[comp].find(l => l.id === lessonId);
+            var lesson = guideData.lessons[comp].find(function (l) { return l.id === lessonId; });
             if (!lesson) return;
-            [...e.target.files].forEach(file => {
-                if (file.type.startsWith('image/') && file.size <= 5*1024*1024) {
-                    const r = new FileReader();
-                    r.onload = function(ev) {
-                        lesson.images.push({ id: 'i'+Date.now(), data: ev.target.result, caption: '' });
+            var files = Array.prototype.slice.call(e.target.files);
+            files.forEach(function (file) {
+                if (file.type.startsWith('image/') && file.size <= 5 * 1024 * 1024) {
+                    var r = new FileReader();
+                    r.onload = function (ev) {
+                        lesson.images.push({ id: 'i' + Date.now(), data: ev.target.result, caption: '' });
                         renderImages(comp, lessonId);
                         saveData();
                     };
@@ -625,47 +667,52 @@
         }
 
         function removeImage(comp, lessonId, imgId) {
-            const lesson = guideData.lessons[comp].find(l => l.id === lessonId);
+            var lesson = guideData.lessons[comp].find(function (l) { return l.id === lessonId; });
             if (lesson) {
-                lesson.images = lesson.images.filter(i => i.id !== imgId);
+                lesson.images = lesson.images.filter(function (i) { return i.id !== imgId; });
                 renderImages(comp, lessonId);
                 saveData();
             }
         }
 
         function updateCaption(comp, lessonId, imgId, v) {
-            const lesson = guideData.lessons[comp].find(l => l.id === lessonId);
-            const img = lesson?.images.find(i => i.id === imgId);
+            var lesson = guideData.lessons[comp].find(function (l) { return l.id === lessonId; });
+            var img = lesson && lesson.images.find(function (i) { return i.id === imgId; });
             if (img) { img.caption = v; saveData(); }
         }
 
         function renderImages(comp, lessonId) {
-            const lesson = guideData.lessons[comp].find(l => l.id === lessonId);
-            const container = document.getElementById(`images-${lessonId}`);
+            var lesson = guideData.lessons[comp].find(function (l) { return l.id === lessonId; });
+            var container = document.getElementById('images-' + lessonId);
             if (!container || !lesson) return;
             container.innerHTML = '';
-            lesson.images.forEach(img => {
-                const card = document.createElement('div');
+            lesson.images.forEach(function (img) {
+                var card = document.createElement('div');
                 card.className = 'image-card';
-                card.innerHTML = `<img src="${img.data}"><button class="remove-btn" onclick="removeImage('${comp}','${lessonId}','${img.id}')">×</button><div class="image-caption"><input type="text" placeholder="Caption..." value="${img.caption||''}" onchange="updateCaption('${comp}','${lessonId}','${img.id}',this.value)"></div>`;
+                card.innerHTML =
+                    '<img src="' + img.data + '">' +
+                    '<button class="remove-btn" onclick="removeImage(\'' + comp + '\',\'' + lessonId + '\',\'' + img.id + '\')">×</button>' +
+                    '<div class="image-caption"><input type="text" placeholder="Caption..." value="' + escAttr(img.caption || '') + '" onchange="updateCaption(\'' + comp + '\',\'' + lessonId + '\',\'' + img.id + '\',this.value)"></div>';
                 container.appendChild(card);
             });
         }
 
+        /* ── Progress ── */
         function updateProgress() {
-            let total = 0, done = 0;
-            ['1','2','3'].forEach(c => {
-                guideData.lessons[c].forEach(lesson => {
+            var total = 0, done = 0;
+            ['1', '2', '3'].forEach(function (c) {
+                guideData.lessons[c].forEach(function (lesson) {
                     total += 1;
-                    if (lesson.notes.some(n => n.content?.length > 10) || lesson.examples.some(e => e.claim && e.verdict)) done++;
+                    if (lesson.notes.some(function (n) { return n.content && n.content.length > 10; }) ||
+                        lesson.examples.some(function (e) { return e.claim && e.verdict; })) done++;
                 });
             });
-            const pct = total > 0 ? Math.round((done/total)*100) : 0;
+            var pct = total > 0 ? Math.round((done / total) * 100) : 0;
             document.getElementById('progressPercent').textContent = pct + '% Complete';
             document.getElementById('progressFill').style.width = pct + '%';
         }
 
-        // Questions (per competency)
+        /* ── Questions ── */
         function addQuestion(comp) {
             guideData.questions[comp].push({ id: 'q' + comp + '_' + Date.now(), text: '' });
             renderQuestions(comp);
@@ -673,82 +720,80 @@
         }
 
         function updateQuestion(comp, id, text) {
-            const q = guideData.questions[comp].find(x => x.id === id);
+            var q = guideData.questions[comp].find(function (x) { return x.id === id; });
             if (q) { q.text = text; saveData(); }
         }
 
         function deleteQuestion(comp, id) {
             if (guideData.questions[comp].length <= 1) { alert('Must have at least one question.'); return; }
-            guideData.questions[comp] = guideData.questions[comp].filter(q => q.id !== id);
+            guideData.questions[comp] = guideData.questions[comp].filter(function (q) { return q.id !== id; });
             renderQuestions(comp);
             saveData();
         }
 
         function renderQuestions(comp) {
-            const container = document.getElementById(`questions-comp${comp}`);
+            var container = document.getElementById('questions-comp' + comp);
             if (!container) return;
             container.innerHTML = '';
-            guideData.questions[comp].forEach((q, idx) => {
-                const item = document.createElement('div');
+            guideData.questions[comp].forEach(function (q, idx) {
+                var item = document.createElement('div');
                 item.className = 'question-item';
-                item.innerHTML = `<span class="question-num">${idx + 1}.</span><input type="text" value="${q.text}" placeholder="Enter question..." onchange="updateQuestion('${comp}', '${q.id}', this.value)"><button class="delete-question-btn" onclick="deleteQuestion('${comp}', '${q.id}')">×</button>`;
+                item.innerHTML =
+                    '<span class="question-num">' + (idx + 1) + '.</span>' +
+                    '<input type="text" value="' + escAttr(q.text) + '" placeholder="Enter question..." onchange="updateQuestion(\'' + comp + '\', \'' + q.id + '\', this.value)">' +
+                    '<button class="delete-question-btn" onclick="deleteQuestion(\'' + comp + '\', \'' + q.id + '\')">×</button>';
                 container.appendChild(item);
             });
         }
 
+        /* ── Save / Load ── */
         function saveData() {
             guideData.studentName = document.getElementById('studentName').value;
             guideData.lastUpdated = new Date().toLocaleString();
-            localStorage.setItem('claimGuideV7', JSON.stringify(guideData));
+            storage.set('claimGuideV7', JSON.stringify(guideData));
             document.getElementById('saveIndicator').textContent = 'Saved';
-            setTimeout(() => document.getElementById('saveIndicator').textContent = 'Auto-saved', 1000);
+            setTimeout(function () { document.getElementById('saveIndicator').textContent = 'Auto-saved'; }, 1000);
             updateDate();
         }
 
         function loadData() {
-            const s = localStorage.getItem('claimGuideV7');
+            var s = storage.get('claimGuideV7');
             if (s) {
-                guideData = JSON.parse(s);
+                try { guideData = JSON.parse(s); } catch (e) { guideData = defaultData(); }
                 document.getElementById('studentName').value = guideData.studentName || '';
                 if (!guideData.lessons) {
-                    guideData.lessons = {
-                        '1': [{ id: 'l1_1', name: 'Lesson 1', notes: [], examples: [], images: [] }],
-                        '2': [{ id: 'l2_1', name: 'Lesson 1', notes: [], examples: [], images: [] }],
-                        '3': [{ id: 'l3_1', name: 'Lesson 1', notes: [], examples: [], images: [] }]
-                    };
+                    guideData.lessons = defaultData().lessons;
                 }
                 if (!guideData.questions || Array.isArray(guideData.questions)) {
-                    guideData.questions = {
-                        '1': [
-                            { id: 'q1_1', text: "What specific evidence is provided?" },
-                            { id: 'q1_2', text: "Is the evidence specific or vague?" },
-                            { id: 'q1_3', text: "Where did the evidence come from?" },
-                            { id: 'q1_4', text: "Can I verify it independently?" }
-                        ],
-                        '2': [
-                            { id: 'q2_1', text: "Is there a mechanism explaining HOW?" },
-                            { id: 'q2_2', text: "Could something else explain this?" },
-                            { id: 'q2_3', text: "Is correlation confused with causation?" },
-                            { id: 'q2_4', text: "Are there logical gaps or assumptions?" }
-                        ],
-                        '3': [
-                            { id: 'q3_1', text: "What system does this relate to?" },
-                            { id: 'q3_2', text: "Who are the stakeholders affected?" },
-                            { id: 'q3_3', text: "Are there feedback loops involved?" },
-                            { id: 'q3_4', text: "What are potential unintended consequences?" }
-                        ]
-                    };
+                    guideData.questions = defaultData().questions;
                 }
             }
-            ['1','2','3'].forEach(c => {
+            ['1', '2', '3'].forEach(function (c) {
                 renderLessons(c);
                 renderQuestions(c);
             });
         }
 
         function updateDate() { document.getElementById('lastUpdated').value = guideData.lastUpdated || new Date().toLocaleString(); }
-        function exportPDF() { showAll = true; document.getElementById('viewToggle').checked = true; updateView(); document.querySelectorAll('.lesson-card').forEach(c => c.classList.add('open')); setTimeout(() => window.print(), 300); }
-        function clearAllData() { if (confirm('Reset everything?')) { localStorage.removeItem('claimGuideV7'); location.reload(); } }
+
+        function exportPDF() {
+            showAll = true;
+            document.getElementById('viewToggle').checked = true;
+            updateView();
+            document.querySelectorAll('.lesson-card').forEach(function (c) { c.classList.add('open'); });
+            setTimeout(function () { window.print(); }, 300);
+        }
+
+        function clearAllData() {
+            if (confirm('Reset everything?')) {
+                storage.remove('claimGuideV7');
+                location.reload();
+            }
+        }
+
+        /* ── Helpers ── */
+        function escHtml(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+        function escAttr(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
     </script>
 </body>
 </html>
